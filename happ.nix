@@ -1,25 +1,7 @@
-{ pkgs ? import <nixpkgs> { } }:
-
-let
-  lib = pkgs.lib;
-
-  # External command-line tools that the Happ client and its helper scripts shell
-  # out to at runtime. Wrapping them into Happ's PATH makes the client
-  # self-contained instead of depending on whatever PATH the desktop session
-  # happens to export:
-  #   - uname (coreutils) / lsb_release  -> OS & device-info reporting
-  #   - ifconfig / route (net-tools)     -> network interface discovery
-  #   - ip (iproute2) / iptables         -> TUN routing setup
-  #   - ps / kill (procps)               -> managing the bundled cores
-  runtimeDeps = with pkgs; [
-    coreutils
-    lsb-release
-    net-tools
-    iproute2
-    iptables
-    procps
-  ];
-in
+{
+  pkgs,
+  lib,
+}:
 pkgs.stdenv.mkDerivation rec {
   pname = "happ-desktop";
   version = "2.18.3";
@@ -53,8 +35,21 @@ pkgs.stdenv.mkDerivation rec {
     libgpg-error
     qt6.qtwayland
     openssl
+    # Wayland/graphics deps — Happ uses Qt with the wayland platform plugin
+    wayland
+    libxkbcommon
+    mesa
+    libdrm
+    vulkan-loader
+    libxcb
+    libxshmfence
+    pulseaudio
   ];
 
+  # ponytail: wrapQtAppsHook (postFixup) would overwrite manual wrapProgram below,
+  # losing LD_LIBRARY_PATH for Wayland/EGL libs Qt loads via dlopen.
+  # Handle everything manually in installPhase.
+  dontWrapQtApps = true;
   dontUnpack = true;
 
   installPhase = ''
@@ -64,16 +59,46 @@ pkgs.stdenv.mkDerivation rec {
 
     dpkg -x $src .
     cp -r opt/happ/* $out/happ/
+    [ -d usr/share ] && cp -r usr/share/* $out/share/
 
-    if [ -d "usr/share" ]; then
-      cp -r usr/share/* $out/share/
-    fi
-
-    # Wrap both the GUI (Happ) and the privileged control daemon (happd).
     for exe in Happ happd; do
       wrapProgram $out/happ/bin/$exe \
-        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ pkgs.openssl ]}" \
-        --prefix PATH : "${lib.makeBinPath runtimeDeps}" \
+        --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtbase}/${pkgs.qt6.qtbase.qtPluginPrefix}" \
+        --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtwayland}/lib/qt-6/plugins" \
+        --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtsvg}/lib/qt-6/plugins" \
+        --prefix QT_PLUGIN_PATH : "${pkgs.qt6.qtdeclarative}/lib/qt-6/plugins" \
+        --prefix NIXPKGS_QT6_QML_IMPORT_PATH : "${pkgs.qt6.qtdeclarative}/lib/qt-6/qml" \
+        --prefix NIXPKGS_QT6_QML_IMPORT_PATH : "${pkgs.qt6.qtwayland}/lib/qt-6/qml" \
+        --prefix LD_LIBRARY_PATH : "${
+          lib.makeLibraryPath (
+            with pkgs;
+            [
+              wayland
+              libxkbcommon
+              mesa
+              libdrm
+              vulkan-loader
+              libxcb
+              libxshmfence
+              pulseaudio
+              libGL
+              openssl
+            ]
+          )
+        }" \
+        --prefix PATH : "${
+          lib.makeBinPath (
+            with pkgs;
+            [
+              coreutils
+              lsb-release
+              net-tools
+              iproute2
+              iptables
+              procps
+            ]
+          )
+        }" \
         --set SSL_CERT_FILE "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
     done
 
@@ -87,8 +112,5 @@ pkgs.stdenv.mkDerivation rec {
     homepage = "https://github.com/Happ-proxy/happ-desktop";
     platforms = [ "x86_64-linux" ];
     mainProgram = "happ";
-    # Happ is distributed as a closed-source, freely redistributable binary.
-    # The license field is intentionally left unset so importing this package
-    # does not force `allowUnfree` on users that do not already enable it.
   };
 }

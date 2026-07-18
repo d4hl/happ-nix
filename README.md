@@ -1,4 +1,4 @@
-# happ-nixos
+# happ-nix
 
 > Run the [Happ](https://github.com/Happ-proxy/happ-desktop) proxy client on NixOS — packaged properly, with a working HWID.
 
@@ -6,49 +6,51 @@
 ![Platform](https://img.shields.io/badge/platform-x86__64--linux-success)
 
 Happ ships as a prebuilt Debian package that assumes a regular FHS layout and a
-writable `/opt/happ` — neither of which exists on NixOS. This module repackages it
+writable `/opt/happ` — neither of which exists on NixOS. This flake repackages it
 for the Nix store and wires up everything needed to run it cleanly, including the
 **HWID fix** the plain `.deb` can't manage on a modern NixOS.
 
-## Features
+## Usage
 
-- 📦 **Nix-native packaging** — autoPatchelf + Qt wrapping, no FHS hacks
-- 🔑 **Working HWID** — restores the device id dbus-broker leaves empty
-- 🛡️ **TUN-mode ready** — firewall, `tun` module, and a root control daemon
-- ⚡ **Fast rebuilds** — `/opt/happ` is refreshed only when the package changes
-
-## Installation
-
-Clone into `/etc/nixos`:
+### Run directly
 
 ```bash
-cd /etc/nixos
-sudo git clone https://github.com/MrShitFox/happ-nixos
+nix run github:MrShitFox/happ-nix
 ```
 
-Import the module and enable it in your `configuration.nix`:
+### Install as a system package
 
 ```nix
+# flake.nix
 {
-  imports = [ ./happ-nixos/happ-module.nix ];
+  inputs.happ-nix.url = "github:MrShitFox/happ-nix";
 
-  services.happ.enable = true;
+  outputs = { nixpkgs, happ-nix, ... }: {
+    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+      modules = [
+        happ-nix.nixosModules.default
+        { programs.happ.enable = true; }
+      ];
+    };
+  };
 }
 ```
 
-Rebuild, then launch **Happ** from your app menu (or run `happ`):
+### Via overlay
 
-```bash
-sudo nixos-rebuild switch
+```nix
+nixpkgs.overlays = [ happ-nix.overlays.default ];
 ```
+
+Then `pkgs.happ` is available everywhere.
 
 ## Options
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `services.happ.enable` | `false` | Enable the Happ client and the `happd` daemon. |
-| `services.happ.package` | built from `happ.nix` | Override the Happ package. |
-| `services.happ.tunInterface` | `"tun0"` | TUN device trusted by the firewall. |
+| `programs.happ.enable` | `false` | Enable the Happ client and the `happd` daemon. |
+| `programs.happ.package` | `happ` | Override the Happ package. |
+| `programs.happ.tunMode.interfaceName` | `"tun0"` | TUN device trusted by the firewall. |
 
 ## The HWID fix
 
@@ -61,19 +63,12 @@ the client shows a blank HWID. The module links it to the real machine id:
 systemd.tmpfiles.rules = [ "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id" ];
 ```
 
-## Updating
-
-```bash
-cd /etc/nixos/happ-nixos && sudo git pull
-sudo nixos-rebuild switch
-```
-
 ## Notes
 
 - Protocols: VLESS, VMess, Trojan, Shadowsocks over TUN. Hysteria2 is not supported.
 - Happ is a closed-source but freely redistributable binary; the package leaves its
   license unset, so `allowUnfree` is not required.
-- Unofficial community module — not affiliated with the Happ project.
+- Unofficial community flake — not affiliated with the Happ project.
 
 ## License
 
