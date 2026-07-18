@@ -1,29 +1,38 @@
 # happ-nix
 
-> Run the [Happ](https://github.com/Happ-proxy/happ-desktop) proxy client on NixOS — packaged properly, with a working HWID.
+> A Nix wrapper for [Happ](https://github.com/Happ-proxy/happ-desktop) — a proxy client
+> (VLESS/VMess/Trojan/Shadowsocks) with a TUN daemon.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-x86__64--linux-success)
 
-Happ ships as a prebuilt Debian package that assumes a regular FHS layout and a
-writable `/opt/happ` — neither of which exists on NixOS. This flake repackages it
-for the Nix store and wires up everything needed to run it cleanly, including the
-**HWID fix** the plain `.deb` can't manage on a modern NixOS.
+Built from the official `.deb` package, unpacked into the Nix store, with
+**working HWID support** on modern NixOS (dbus-broker).
 
-## Usage
-
-### Run directly
+## Quick start
 
 ```bash
-nix run github:MrShitFox/happ-nix
+# Run GUI directly
+nix run github:DaHL-gh/happ-nix#happ
+
+# Or use the default package
+nix run github:DaHL-gh/happ-nix
 ```
 
-### Install as a system package
+## Flake outputs
+
+| Output                          | Description                          |
+| ------------------------------- | ------------------------------------ |
+| `packages.x86_64-linux.happ`    | Happ package with Happ GUI and happd |
+| `packages.x86_64-linux.default` | Same as above                        |
+| `apps.x86_64-linux.default`     | Launches the Happ GUI                |
+| `overlays.default`              | Overlay providing `pkgs.happ`        |
+| `nixosModules.default`          | NixOS module with TUN daemon support |
+
+## Installing on NixOS
 
 ```nix
-# flake.nix
 {
-  inputs.happ-nix.url = "github:MrShitFox/happ-nix";
+  inputs.happ-nix.url = "github:DaHL-gh/happ-nix";
 
   outputs = { nixpkgs, happ-nix, ... }: {
     nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
@@ -36,40 +45,68 @@ nix run github:MrShitFox/happ-nix
 }
 ```
 
-### Via overlay
+### Module options
+
+| Option                         | Default | Description                              |
+| ------------------------------ | ------- | ---------------------------------------- |
+| `programs.happ.enable`         | `false` | Enables Happ GUI and happd               |
+| `programs.happ.package`        | `happ`  | Custom Happ package                      |
+| `programs.happ.tunMode.enable` | `false` | Enables TUN mode and the systemd service |
+
+## TUN mode configuration
+
+```nix
+{
+  programs.happ = {
+    enable = true;
+    tunMode.enable = true;
+  };
+}
+```
+
+Enables:
+
+* `happd` systemd service (running as root)
+* `/var/lib/dbus/machine-id` → `/etc/machine-id` symlink (HWID fix)
+* `networking.firewall.checkReversePath = "loose"`
+* `networking.firewall.trustedInterfaces = [ "tun0" ]`
+* `tun` kernel module
+
+## Overlay only
 
 ```nix
 nixpkgs.overlays = [ happ-nix.overlays.default ];
 ```
 
-Then `pkgs.happ` is available everywhere.
+## HWID fix
 
-## Options
+Happ retrieves its HWID using Qt's `machineUniqueId()`, which reads
+`/var/lib/dbus/machine-id`.
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `programs.happ.enable` | `false` | Enable the Happ client and the `happd` daemon. |
-| `programs.happ.package` | `happ` | Override the Happ package. |
-| `programs.happ.tunMode.interfaceName` | `"tun0"` | TUN device trusted by the firewall. |
+On NixOS with dbus-broker this file may not exist, causing an empty HWID.
 
-## The HWID fix
-
-Happ derives its hardware id from Qt's `machineUniqueId()`, which on Linux reads
-`/var/lib/dbus/machine-id`. NixOS defaults to **dbus-broker**, and — unlike the
-classic dbus-daemon — it doesn't create that file, so the id comes back empty and
-the client shows a blank HWID. The module links it to the real machine id:
+The module fixes this by creating a symlink:
 
 ```nix
-systemd.tmpfiles.rules = [ "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id" ];
+systemd.tmpfiles.rules = [
+  "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id"
+];
 ```
 
 ## Notes
 
-- Protocols: VLESS, VMess, Trojan, Shadowsocks over TUN. Hysteria2 is not supported.
-- Happ is a closed-source but freely redistributable binary; the package leaves its
-  license unset, so `allowUnfree` is not required.
-- Unofficial community flake — not affiliated with the Happ project.
+* Only `x86_64-linux` is supported.
+* The binary is proprietary but freely redistributable — `allowUnfree` is not required.
+* Hysteria2 is not supported by the client.
+* Wayland works through `qt6.qtwayland` and additional `LD_LIBRARY_PATH` handling
+  on top of `wrapQtAppsHook`.
 
 ## License
 
-[GPL-3.0](LICENSE) — see the LICENSE file.
+[GPL-3.0](LICENSE)
+
+## Thanks
+
+Inspired by the original NixOS module:
+[MrShitFox/happ-nixos](https://github.com/MrShitFox/happ-nixos).
+
