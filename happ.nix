@@ -103,6 +103,9 @@ pkgs.stdenv.mkDerivation rec {
     done
 
     ln -s $out/happ/bin/Happ $out/bin/happ
+    ln -s $out/happ/bin/happd $out/bin/happd
+
+    substituteInPlace $out/share/applications/Happ.desktop --replace-fail "/opt/happ/bin/Happ" "$out/bin/happ"
 
     runHook postInstall
   '';

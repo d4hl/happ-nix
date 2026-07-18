@@ -27,17 +27,6 @@ in
         "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id"
       ];
 
-      system.activationScripts.happ-opt = lib.stringAfter [ "stdio" ] ''
-        stamp=/opt/happ/.nix-store-path
-        if [ "$(cat "$stamp" 2>/dev/null)" != "${cfg.package}" ]; then
-          rm -rf /opt/happ
-          mkdir -p /opt/happ
-          cp -r ${cfg.package}/happ/. /opt/happ/
-          chmod -R 0777 /opt/happ
-          printf '%s' "${cfg.package}" > "$stamp"
-        fi
-      '';
-
       networking.firewall.checkReversePath = "loose";
       networking.firewall.trustedInterfaces = [ "tun0" ];
       boot.kernelModules = [ "tun" ];
@@ -60,7 +49,7 @@ in
           User = "root";
           Group = "root";
 
-          ExecStart = "/opt/happ/bin/happd";
+          ExecStart = "${cfg.package}/bin/happd";
 
           Restart = "on-failure";
           RestartSec = "5s";
