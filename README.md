@@ -20,13 +20,13 @@ nix run github:DaHL-gh/happ-nix
 
 ## Flake outputs
 
-| Output                          | Description                          |
-| ------------------------------- | ------------------------------------ |
-| `packages.x86_64-linux.happ`    | Happ package with Happ GUI and happd |
-| `packages.x86_64-linux.default` | Same as above                        |
-| `apps.x86_64-linux.default`     | Launches the Happ GUI                |
-| `overlays.default`              | Overlay providing `pkgs.happ`        |
-| `nixosModules.default`          | NixOS module with TUN daemon support |
+| Output                                   | Description                          |
+| ---------------------------------------- | ------------------------------------ |
+| `packages.<system>.happ`                 | Happ package with Happ GUI and happd |
+| `packages.<system>.default`              | Same as above                        |
+| `apps.<system>.default`                  | Launches the Happ GUI                |
+| `overlays.default`                       | Overlay providing `pkgs.happ`        |
+| `nixosModules.default`                   | NixOS module with TUN daemon support |
 
 ## Installing on NixOS
 
@@ -95,7 +95,7 @@ systemd.tmpfiles.rules = [
 
 ## Notes
 
-* Only `x86_64-linux` is supported.
+* Supported on `x86_64-linux` and `aarch64-linux`.
 * The binary is proprietary but freely redistributable — `allowUnfree` is not required.
 * Hysteria2 is not supported by the client.
 * Wayland works through `qt6.qtwayland` and additional `LD_LIBRARY_PATH` handling

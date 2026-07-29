@@ -9,26 +9,27 @@
     { self, nixpkgs, ... }:
     let
       lib = nixpkgs.lib;
-      system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; };
+      systems = [ "x86_64-linux" "aarch64-linux" ];
 
-      happ = pkgs.callPackage ./happ.nix { inherit pkgs lib; };
+      forAllSystems = lib.genAttrs systems;
     in
     {
-      packages.${system} = {
-        default = happ;
-        happ = happ;
-      };
+      packages = forAllSystems (system: let
+        pkgs = import nixpkgs { inherit system; };
+      in {
+        default = pkgs.callPackage ./happ.nix { inherit pkgs lib; };
+        happ = pkgs.callPackage ./happ.nix { inherit pkgs lib; };
+      });
 
-      apps.${system} = {
+      apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${happ}/bin/happ";
+          program = "${self.packages.${system}.default}/bin/happ";
         };
-      };
+      });
 
       overlays.default = final: prev: {
-        happ = self.packages.${system}.default;
+        happ = self.packages.${prev.stdenv.hostPlatform.system}.default;
       };
 
       nixosModules.default = { pkgs, ... }: {

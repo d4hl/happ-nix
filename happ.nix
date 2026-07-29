@@ -1,12 +1,18 @@
 { pkgs, lib }:
 
+let
+  arch = if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64";
+  sha256 = if pkgs.stdenv.hostPlatform.isAarch64
+    then "19jay54wnj7ypqkhjmrb4s3lh09nwyy8c3yz7jr1vdhxmgfddlx4"
+    else "1926zkpj59p1bc5h5asy78isyx1f1zs41bdi948gwyrqfw9cbnm7";
+in
 pkgs.stdenv.mkDerivation rec {
   pname = "happ-desktop";
   version = "3.3.6";
 
   src = pkgs.fetchurl {
-    url = "https://github.com/Happ-proxy/happ-desktop/releases/download/${version}/Happ.linux.x64.deb";
-    sha256 = "1926zkpj59p1bc5h5asy78isyx1f1zs41bdi948gwyrqfw9cbnm7";
+    url = "https://github.com/Happ-proxy/happ-desktop/releases/download/${version}/Happ.linux.${arch}.deb";
+    inherit sha256;
   };
 
   nativeBuildInputs = with pkgs; [
