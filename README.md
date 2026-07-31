@@ -98,8 +98,40 @@ systemd.tmpfiles.rules = [
 * Supported on `x86_64-linux` and `aarch64-linux`.
 * The binary is proprietary but freely redistributable — `allowUnfree` is not required.
 * Hysteria2 is not supported by the client.
-* Wayland works through `qt6.qtwayland` and additional `LD_LIBRARY_PATH` handling
-  on top of `wrapQtAppsHook`.
+* Wayland works through `qt6.qtwayland` and additional `LD_LIBRARY_PATH` /
+  env handling on top of `wrapQtAppsHook` (see Troubleshooting).
+
+## Troubleshooting
+
+Hard-won notes from getting Happ working on a hardware Wayland session
+(verified on phosh, Snapdragon 845 / Adreno 630, aarch64):
+
+* **Window is black / SIGSEGV right after launch.** libxkbcommon can't find its
+  keymap data and crashes during load (`xkbcommon: failed to add default include
+  path /usr/share/X11/xkb` → `failed to create xkb context`). Fixed by setting
+  `XKB_CONFIG_ROOT=${pkgs.xkeyboard_config}/share/X11/xkb` in `qtWrapperArgs`.
+
+* **GUI renders black for minutes / is unstable, and the VPN drops with it.** The
+  `.deb` bundles `libwayland-client.so.0.22`, but the system compositor + mesa use
+  a newer one (e.g. 1.25). Two libwayland-client instances make
+  `eglGetDisplay(wl_display)` fail (`qt.qpa.wayland: EGL not available` →
+  `QRhiGles2: Failed to create context`), so QtQuick silently falls back to the
+  **software** backend — which on a weak GPU is glacial and unstable, and because
+  Happ's proxy core runs in-process, an unstable GUI drops the tunnel. Fix: put
+  `pkgs.wayland` FIRST on `LD_LIBRARY_PATH` (shadows the bundled 1.22) plus
+  `pkgs.libglvnd` + `/run/opengl-driver/lib` + `__EGL_VENDOR_LIBRARY_DIRS` so Qt
+  gets **hardware** GL. All of this is now baked into `qtWrapperArgs`.
+  Requires `hardware.graphics.enable = true` (populates `/run/opengl-driver`).
+
+* **The icon uses the package's `Happ.desktop` → `bin/happ`** (the `wrapQtAppsHook`
+  wrapper), so the env above must live in `qtWrapperArgs`, not in a hand-written
+  `.desktop` you drop elsewhere (`/etc/xdg/applications` is not on `XDG_DATA_DIRS`
+  and won't be used).
+
+* **VPN "connects" then disconnects immediately.** Happ runs its **own** proxy
+  core (xray/sing-box) bound to `127.0.0.1:10808`. If anything else already
+  listens on that port — e.g. a `services.sing-box` placeholder — Happ's core
+  can't bind it and the tunnel tears down at once. Don't occupy `:10808`.
 
 ## License
 
