@@ -2,23 +2,25 @@
 
 pkgs.stdenv.mkDerivation rec {
   pname = "happ-desktop";
-  version = "3.3.6";
+  version = "4.1.1";
 
   src = pkgs.fetchurl {
     url = "https://github.com/Happ-proxy/happ-desktop/releases/download/${version}/Happ.linux.x64.deb";
-    sha256 = "1926zkpj59p1bc5h5asy78isyx1f1zs41bdi948gwyrqfw9cbnm7";
+    sha256 = "sha256-LPP+BvEyU3JjyWiBo5HM5IMQruwHSLZ0GkNXsKYtzbg=";
   };
 
   nativeBuildInputs = with pkgs; [
     autoPatchelfHook
     dpkg
     e2fsprogs
-    qt6.qtbase
     qt6.wrapQtAppsHook
     stdenv.cc.cc
   ];
 
   buildInputs = with pkgs; [
+    qt6.qtbase
+    qt6.qtdeclarative
+    qt6.qtsvg
   ];
 
   dontUnpack = true;
@@ -31,6 +33,7 @@ pkgs.stdenv.mkDerivation rec {
     dpkg -x "$src" root
 
     cp -r root/opt/happ $out/
+    rm -rf $out/happ/lib
 
     if [ -d root/usr/share ]; then
       mkdir -p $out/share
@@ -48,29 +51,6 @@ pkgs.stdenv.mkDerivation rec {
 
     runHook postInstall
   '';
-
-  qtWrapperArgs = [
-    "--prefix"
-    "PATH"
-    ":"
-    (lib.makeBinPath (with pkgs; [ glib ]))
-
-    "--set"
-    "SSL_CERT_FILE"
-    "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-
-    # Если без этого всё работает — удалить.
-    "--prefix"
-    "LD_LIBRARY_PATH"
-    ":"
-    (lib.makeLibraryPath (
-      with pkgs;
-      [
-        libxkbcommon
-        openssl
-      ]
-    ))
-  ];
 
   meta = with lib; {
     description = "Happ proxy desktop client";
