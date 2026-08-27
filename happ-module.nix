@@ -62,11 +62,11 @@ in
 
           AmbientCapabilities = [
             "CAP_NET_ADMIN"
-            "CAP_DAC_READ_SEARCH"
+            "CAP_DAC_OVERRIDE"
           ];
           CapabilityBoundingSet = [
             "CAP_NET_ADMIN"
-            "CAP_DAC_READ_SEARCH"
+            "CAP_DAC_OVERRIDE"
           ];
 
           NoNewPriveleges = true;
