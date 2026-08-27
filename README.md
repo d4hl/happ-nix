@@ -12,10 +12,9 @@ Built from the official `.deb` package, unpacked into the Nix store, with
 
 ```bash
 # Run GUI directly
-nix run github:DaHL-gh/happ-nix#happ
-
-# Or use the default package
 nix run github:DaHL-gh/happ-nix
+# or
+nix run github:DaHL-gh/happ-nix#happ
 ```
 
 ## Flake outputs
@@ -78,28 +77,11 @@ Enables:
 nixpkgs.overlays = [ happ-nix.overlays.default ];
 ```
 
-## HWID fix
-
-Happ retrieves its HWID using Qt's `machineUniqueId()`, which reads
-`/var/lib/dbus/machine-id`.
-
-On NixOS with dbus-broker this file may not exist, causing an empty HWID.
-
-The module fixes this by creating a symlink:
-
-```nix
-systemd.tmpfiles.rules = [
-  "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id"
-];
-```
-
 ## Notes
 
-* Only `x86_64-linux` is supported.
-* The binary is proprietary but freely redistributable — `allowUnfree` is not required.
-* Hysteria2 is not supported by the client.
-* Wayland works through `qt6.qtwayland` and additional `LD_LIBRARY_PATH` handling
-  on top of `wrapQtAppsHook`.
+* Currently only `x86_64-linux` is supported.
+* The binary is proprietary but for now `allowUnfree` is not required.
+* Lots of things are not tested, for example Hysteria2 configs.
 
 ## License
 
