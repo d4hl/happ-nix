@@ -60,8 +60,14 @@ in
 
           ExecStart = "${cfg.package}/bin/happd";
 
-          AmbientCapabilities = [ "CAP_NET_ADMIN" ];
-          CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+          AmbientCapabilities = [
+            "CAP_NET_ADMIN"
+            "CAP_DAC_READ_SEARCH"
+          ];
+          CapabilityBoundingSet = [
+            "CAP_NET_ADMIN"
+            "CAP_DAC_READ_SEARCH"
+          ];
 
           NoNewPriveleges = true;
 
