@@ -22,6 +22,14 @@ in
       environment.systemPackages = [ cfg.package ];
     })
     (lib.mkIf (cfg.enable && cfg.tunMode.enable) {
+      users = {
+        users.happd = {
+          isSystemUser = true;
+          group = "happd";
+        };
+        groups.happd = { };
+      };
+
       # HWID fix
       systemd.tmpfiles.rules = [
         "L+ /var/lib/dbus/machine-id - - - - /etc/machine-id"
@@ -46,10 +54,16 @@ in
 
         serviceConfig = {
           Type = "simple";
-          User = "root";
-          Group = "root";
+
+          User = "happd";
+          Group = "happd";
 
           ExecStart = "${cfg.package}/bin/happd";
+
+          AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+          CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+
+          NoNewPriveleges = true;
 
           Restart = "on-failure";
           RestartSec = "5s";
@@ -62,4 +76,3 @@ in
     })
   ];
 }
-
