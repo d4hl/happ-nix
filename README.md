@@ -8,6 +8,10 @@
 Built from the official `.deb` package, unpacked into the Nix store, with
 **working HWID support** on modern NixOS (dbus-broker).
 
+# ! WARNING !
+### When using the NixOS module, happd is granted full root privileges. Use it with caution.
+### If you have an idea on how to restrict its privileges using Linux capabilities, please consider opening a pull request.
+
 ## Quick start
 
 ```bash
