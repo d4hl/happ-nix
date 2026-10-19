@@ -16,9 +16,9 @@ Built from the official `.deb` package, unpacked into the Nix store, with
 
 ```bash
 # Run GUI directly
-nix run github:DaHL-gh/happ-nix
+nix run github:d4hl/happ-nix
 # or
-nix run github:DaHL-gh/happ-nix#happ
+nix run github:d4hl/happ-nix#happ
 ```
 
 ## Flake outputs
@@ -35,7 +35,7 @@ nix run github:DaHL-gh/happ-nix#happ
 
 ```nix
 {
-  inputs.happ-nix.url = "github:DaHL-gh/happ-nix";
+  inputs.happ-nix.url = "github:d4hl/happ-nix";
 
   outputs = { nixpkgs, happ-nix, ... }: {
     nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
