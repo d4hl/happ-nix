@@ -1,0 +1,94 @@
+name: Update Happ
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Use last pre-release
+        type: boolean
+        default: true
+      version:
+        description: Version (blank = latest)
+        type: string
+        default: ""
+      update_flake:
+        description: Update flake.lock
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-happ
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Update Happ
+        id: update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          VERSION: ${{ inputs.version }}
+          UPDATE_FLAKE: ${{ inputs.update_flake }}
+        run: |
+          args=()
+          [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+          [[ -n "$VERSION" ]] && args+=(--version "$VERSION")
+          [[ "$UPDATE_FLAKE" == "true" ]] && args+=(--update-flake)
+
+          ./scripts/update.sh --notes /tmp/release-notes.md "${args[@]}"
+
+          version=$(sed -n 's/^[[:space:]]*version = "\(.*\)";.*/\1/p' happ.nix | head -n1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check and build
+        id: verify
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git diff --stat
+          nix build --no-link .#happ
+
+      - name: Create Pull Request
+        if: steps.verify.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "happ: update to ${{ steps.update.outputs.version }}"
+          branch: auto/update-happ
+          delete-branch: true
+          title: "happ: update to ${{ steps.update.outputs.version }}"
+          labels: automated
+          body: |
+            Automatic update of `happ-desktop` to **${{ steps.update.outputs.version }}**.
+
+            ### Changes
+
+            ```diff
+            ${{ steps.update.outputs.version }}
+            ```
+
+            ### Release notes
+
+            ${{ steps.update.outputs.release_notes }}
+
