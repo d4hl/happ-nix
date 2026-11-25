@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       prerelease:
-        description: Use last pre-release
+        description: Allow pre-releases (off = highest stable semver)
         type: boolean
-        default: true
+        default: false
       version:
-        description: Version (blank = latest)
+        description: Version (blank = resolve automatically)
         type: string
         default: ""
       update_flake:
@@ -39,6 +39,24 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
+      # The pending bump is what a re-run must never undo: it is the version
+      # already sitting in the auto/update-happ branch, which is newer than main.
+      - name: Determine baseline
+        id: baseline
+        run: |
+          base=$(sed -n 's/^[[:space:]]*version = "\(.*\)";.*/\1/p' happ.nix | head -n1)
+          pending=""
+
+          if git fetch --no-tags --depth=1 origin auto/update-happ 2>/dev/null; then
+            pending=$(git show FETCH_HEAD:happ.nix 2>/dev/null |
+              sed -n 's/^[[:space:]]*version = "\(.*\)";.*/\1/p' | head -n1 || true)
+          fi
+
+          baseline=$(printf '%s\n%s\n' "$base" "$pending" | sort -V | tail -n1)
+
+          echo "main=$base pending=${pending:-none} baseline=$baseline"
+          echo "version=$baseline" >> "$GITHUB_OUTPUT"
+
       - name: Update Happ
         id: update
         env:
@@ -46,27 +64,43 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease }}
           VERSION: ${{ inputs.version }}
           UPDATE_FLAKE: ${{ inputs.update_flake }}
+          BASELINE: ${{ steps.baseline.outputs.version }}
         run: |
+          notes=/tmp/release-notes.md
           args=()
-          [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          else
+            args+=(--stable)
+          fi
+
           [[ -n "$VERSION" ]] && args+=(--version "$VERSION")
+          [[ -n "$BASELINE" ]] && args+=(--floor "$BASELINE")
           [[ "$UPDATE_FLAKE" == "true" ]] && args+=(--update-flake)
 
-          ./scripts/update.sh --notes /tmp/release-notes.md "${args[@]}"
+          ./scripts/update.sh --notes "$notes" "${args[@]}"
 
           version=$(sed -n 's/^[[:space:]]*version = "\(.*\)";.*/\1/p' happ.nix | head -n1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "release_notes<<HAPP_EOF"
+            cat "$notes" 2>/dev/null || true
+            echo "HAPP_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check and build
         id: verify
         run: |
           if [[ -z "$(git status --porcelain)" ]]; then
+            echo "Nothing changed"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          git diff --stat
+          git --no-pager diff --stat
           nix build --no-link .#happ
 
       - name: Create Pull Request
@@ -82,13 +116,11 @@ jobs:
           body: |
             Automatic update of `happ-desktop` to **${{ steps.update.outputs.version }}**.
 
-            ### Changes
+            Built successfully with `nix build .#happ` on the CI runner.
 
-            ```diff
-            ${{ steps.update.outputs.version }}
-            ```
-
-            ### Release notes
+            <details>
+            <summary>Release notes</summary>
 
             ${{ steps.update.outputs.release_notes }}
 
+            </details>
